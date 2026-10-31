@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ถามตอบจากเอกสาร</title>
+<link rel="stylesheet" href="/static/model.css">
+<script src="/static/model.js" defer></script>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --accent:#2f6fed; --soft:#eceef4; --border:#dde0ea; --ok:#e7f6ec; --mut:#6b7280; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161c; --card:#1d2029; --text:#e6e8ef; --accent:#3b7bff; --soft:#2a2e3a; --border:#333847; --ok:#1e3326; --mut:#9aa1b2; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; }
+  .app { max-width:900px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  h1 { font-size:18px; margin:0; }
+  small { opacity:.7; font-weight:normal; }
+  a { color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .card h2 { font-size:14px; margin:0 0 8px; opacity:.75; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button { padding:9px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; font-size:14px; cursor:pointer; }
+  button.ghost { background:var(--soft); color:var(--text); }
+  button.x { padding:2px 8px; background:transparent; color:var(--mut); font-size:16px; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=text] { flex:1; min-width:200px; padding:11px 12px; border-radius:10px; border:1px solid var(--border);
+        background:var(--card); color:var(--text); font:inherit; font-size:15px; }
+  .doc { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:14px; }
+  .doc .name { flex:1; overflow-wrap:anywhere; }
+  .doc .meta { color:var(--mut); font-size:12px; white-space:nowrap; }
+  .hint { color:var(--mut); font-size:13px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { padding:4px 10px; border:1px solid var(--border); border-radius:16px; background:var(--card); color:var(--text); font-size:13px; cursor:pointer; }
+  .q { align-self:flex-end; background:var(--accent); color:#fff; padding:8px 12px; border-radius:12px; max-width:85%; }
+  .a { background:var(--ok); border-radius:12px; padding:10px 14px; white-space:pre-wrap; line-height:1.7; }
+  .a.err { background:#fde8e8; color:#9b1c1c; }
+  .cite { color:var(--accent); cursor:pointer; font-weight:600; text-decoration:none; }
+  details.src { margin-top:8px; font-size:13px; }
+  details.src summary { cursor:pointer; color:var(--mut); }
+  .srcitem { border-left:3px solid var(--border); padding:4px 10px; margin:6px 0; white-space:pre-wrap; line-height:1.6; }
+  .srcitem.flash { border-left-color:var(--accent); background:var(--soft); }
+  .srcitem b { display:block; font-size:12px; color:var(--mut); margin-bottom:2px; }
+  #log { display:flex; flex-direction:column; gap:10px; }
+  .hidden { display:none !important; }
+  #drop.over { outline:2px dashed var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ถามตอบจากเอกสาร <small>· <a href="/">หน้าแรก</a> · <a href="/chat">แชท</a> · <a href="/proofread">ตรวจและปรับภาษา</a> · <a href="/write">ช่วยเขียน</a> · <a href="/meeting">สรุปประชุม</a></small></h1>
+  <label class="modelbar">โมเดล <select id="model"></select></label>
+
+  <div class="card" id="drop">
+    <h2>เอกสารในระบบ</h2>
+    <div id="docs"><span class="hint">กำลังโหลด...</span></div>
+    <div class="row" style="margin-top:8px">
+      <button class="ghost" id="upload">+ เพิ่มเอกสาร</button>
+      <input type="file" id="file" multiple accept=".txt,.md,.docx,.pdf" class="hidden">
+      <span class="hint">รองรับ .pdf .docx .txt .md (ลากไฟล์มาวางได้) PDF ที่เป็นภาพสแกนอ่านไม่ได้</span>
+    </div>
+    <div id="upStatus" class="hint" style="margin-top:6px"></div>
+  </div>
+
+  <div class="row">
+    <input type="text" id="q" maxlength="1000" placeholder="ถามเกี่ยวกับเอกสาร เช่น ซื้อของ 300,000 บาท ใช้วิธีไหน" autocomplete="off">
+    <button id="ask">ถาม</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="row">
+    <button class="ghost" id="more">✨ สร้างคำถามแนะนำเพิ่ม</button>
+    <button class="x" id="clearS" title="ล้างคำถามแนะนำทั้งหมด">ล้าง</button>
+    <span class="hint" id="sStatus"></span>
+  </div>
+
+  <div id="log"></div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const SKEY = "okmd-ask-suggestions";
+  const MAX_SUGG = 15;
+  let sugg = [], suggSig = "", suggBusy = false;
+
+  const loadStore = () => { try { return JSON.parse(localStorage.getItem(SKEY)) || {}; } catch (e) { return {}; } };
+  const saveStore = () => { try { localStorage.setItem(SKEY, JSON.stringify({ sig: suggSig, list: sugg })); } catch (e) { /* จำค่าไม่ได้ก็ไม่เป็นไร */ } };
+
+  function renderChips() {
+    const box = $("chips");
+    box.innerHTML = "";
+    sugg.forEach((s) => {
+      const c = document.createElement("button");
+      c.className = "chip"; c.textContent = s;
+      c.onclick = () => { $("q").value = s; ask(); };
+      box.appendChild(c);
+    });
+    $("clearS").classList.toggle("hidden", !sugg.length);
+  }
+
+  async function generateSuggestions() {
+    if (suggBusy) return;
+    suggBusy = true;
+    $("more").disabled = true;
+    $("sStatus").textContent = "กำลังสร้างคำถามแนะนำจากเอกสาร...";
+    try {
+      const res = await fetch("/api/suggest", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ existing: sugg, model: typeof getModel === "function" ? getModel() : "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      sugg = [...data.questions, ...sugg].slice(0, MAX_SUGG);
+      saveStore(); renderChips();
+      $("sStatus").textContent = `เพิ่ม ${data.questions.length} คำถาม`;
+    } catch (err) {
+      $("sStatus").textContent = err.message;
+    } finally {
+      suggBusy = false; $("more").disabled = false;
+    }
+  }
+
+  // ชุดเอกสารเปลี่ยน (เพิ่ม/ลบ/แทนที่ไฟล์) คำถามเดิมอาจใช้ไม่ได้แล้ว จึงล้างแล้วสร้างใหม่ให้อัตโนมัติ
+  function syncSuggestions(docs) {
+    const sig = docs.map((d) => `${d.name}:${d.size}`).join("|");
+    const stored = loadStore();
+    const first = suggSig === "";
+    if (first && stored.sig === sig && Array.isArray(stored.list)) { suggSig = sig; sugg = stored.list; renderChips(); return; }
+    if (!first && sig === suggSig) return;
+    suggSig = sig; sugg = []; saveStore(); renderChips();
+    $("more").disabled = !docs.length;
+    if (docs.length) generateSuggestions();
+    else $("sStatus").textContent = "";
+  }
+
+  $("more").onclick = generateSuggestions;
+  $("clearS").onclick = () => { sugg = []; saveStore(); renderChips(); $("sStatus").textContent = ""; };
+
+  function fmtSize(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; }
+
+  async function loadDocs(list) {
+    if (!list) list = (await (await fetch("/api/docs")).json()).docs;
+    syncSuggestions(list);
+    const box = $("docs");
+    box.innerHTML = "";
+    if (!list.length) { box.innerHTML = '<span class="hint">ยังไม่มีเอกสาร กด "+ เพิ่มเอกสาร" เพื่อเริ่มต้น</span>'; return; }
+    list.forEach((d) => {
+      const row = document.createElement("div");
+      row.className = "doc";
+      const name = document.createElement("span"); name.className = "name"; name.textContent = d.name;
+      const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = `${d.chunks} ท่อน · ${fmtSize(d.size)}`;
+      const del = document.createElement("button"); del.className = "x"; del.textContent = "×"; del.title = "ลบเอกสาร";
+      del.onclick = async () => {
+        if (!confirm("ลบเอกสาร \"" + d.name + "\" ออกจากระบบ?")) return;
+        const r = await fetch("/api/docs/" + encodeURIComponent(d.name), { method: "DELETE" });
+        loadDocs((await r.json()).docs);
+      };
+      row.append(name, meta, del);
+      box.appendChild(row);
+    });
+  }
+
+  async function uploadFiles(files) {
+    if (!files.length) return;
+    const fd = new FormData();
+    [...files].forEach((f) => fd.append("files", f));
+    $("upStatus").textContent = "กำลังอัปโหลดและสร้างดัชนี...";
+    try {
+      const res = await fetch("/api/docs", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      const msg = [];
+      if (data.saved.length) msg.push("เพิ่มแล้ว: " + data.saved.join(", "));
+      if (data.skipped.length) msg.push("ข้าม: " + data.skipped.join("; "));
+      $("upStatus").textContent = msg.join(" | ");
+      loadDocs(data.docs);
+    } catch (err) {
+      $("upStatus").textContent = "อัปโหลดไม่สำเร็จ: " + err.message;
+    }
+    $("file").value = "";
+  }
+  $("upload").onclick = () => $("file").click();
+  $("file").onchange = () => uploadFiles($("file").files);
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => uploadFiles(e.dataTransfer.files));
+
+  // แปลง [1] [2] ในคำตอบเป็นลิงก์ที่กดแล้วเลื่อนไปยังแหล่งที่มา
+  function answerNode(text, sources, uid) {
+    const frag = document.createDocumentFragment();
+    text.split(/(\[\d+\])/).forEach((part) => {
+      const m = part.match(/^\[(\d+)\]$/);
+      if (m && sources.some((s) => s.n === +m[1])) {
+        const a = document.createElement("a");
+        a.className = "cite"; a.textContent = part; a.href = "#";
+        a.onclick = (e) => {
+          e.preventDefault();
+          const det = document.getElementById(`${uid}-d`); det.open = true;
+          const el = document.getElementById(`${uid}-s${m[1]}`);
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1800);
+        };
+        frag.appendChild(a);
+      } else frag.appendChild(document.createTextNode(part));
+    });
+    return frag;
+  }
+
+  let n = 0;
+  async function ask() {
+    const question = $("q").value.trim();
+    if (!question) return;
+    $("q").value = "";
+    const qEl = document.createElement("div"); qEl.className = "q"; qEl.textContent = question;
+    const aEl = document.createElement("div"); aEl.className = "a"; aEl.textContent = "กำลังค้นหาในเอกสาร...";
+    $("log").append(qEl, aEl);
+    aEl.scrollIntoView({ block: "end", behavior: "smooth" });
+    $("ask").disabled = true;
+    const uid = "r" + ++n;
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, model: getModel() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      aEl.textContent = "";
+      aEl.appendChild(answerNode(data.answer, data.sources, uid));
+      if (data.sources.length) {
+        const det = document.createElement("details"); det.className = "src"; det.id = uid + "-d";
+        const sum = document.createElement("summary"); sum.textContent = `แหล่งอ้างอิง ${data.sources.length} ท่อน`;
+        det.appendChild(sum);
+        data.sources.forEach((s) => {
+          const it = document.createElement("div"); it.className = "srcitem"; it.id = `${uid}-s${s.n}`;
+          const h = document.createElement("b"); h.textContent = `[${s.n}] ${s.doc} · ท่อนที่ ${s.idx}`;
+          it.append(h, document.createTextNode(s.text));
+          det.appendChild(it);
+        });
+        aEl.appendChild(det);
+      }
+    } catch (err) {
+      aEl.className = "a err"; aEl.textContent = err.message;
+    } finally {
+      $("ask").disabled = false; $("q").focus();
+    }
+  }
+  $("ask").onclick = ask;
+  $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+  loadDocs();
+</script>
+</body>
+</html>

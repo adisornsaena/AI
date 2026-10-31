@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ผู้ช่วย AI สำนักงาน</title>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --mut:#6b7280; --border:#dde0ea; --shadow:0 1px 3px rgba(20,30,60,.08); }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161c; --card:#1d2029; --text:#e6e8ef; --mut:#9aa1b2; --border:#333847; --shadow:none; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; }
+  .wrap { max-width:1040px; margin:0 auto; padding:32px 16px 40px; }
+  header { margin-bottom:24px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  header p { margin:0; color:var(--mut); line-height:1.6; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; }
+  @media (max-width:860px) { .grid { grid-template-columns:repeat(2, 1fr); } }
+  @media (max-width:560px) { .grid { grid-template-columns:1fr; } }
+  .banner { display:flex; flex-direction:column; min-height:210px; border-radius:16px; overflow:hidden; text-decoration:none;
+            color:inherit; background:var(--card); border:1px solid var(--border); box-shadow:var(--shadow);
+            transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .banner:hover, .banner:focus-visible { transform:translateY(-3px); box-shadow:0 8px 20px rgba(20,30,60,.16); border-color:var(--c); outline:none; }
+  .top { height:92px; display:flex; align-items:center; justify-content:center; font-size:42px;
+         background:linear-gradient(135deg, var(--c), var(--c2)); }
+  .body { padding:14px 16px 16px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .body h2 { margin:0; font-size:17px; }
+  .body p { margin:0; font-size:14px; line-height:1.6; color:var(--mut); flex:1; }
+  .go { font-size:13px; font-weight:600; color:var(--c); }
+  .banner:nth-child(1) { --c:#2f6fed; --c2:#5b9bff; }
+  .banner:nth-child(2) { --c:#0f9d8a; --c2:#3cc9b4; }
+  .banner:nth-child(3) { --c:#8b5cf6; --c2:#b394fb; }
+  .banner:nth-child(4) { --c:#e8590c; --c2:#ff8f4d; }
+  .banner:nth-child(5) { --c:#d6336c; --c2:#f26c9b; }
+  footer { margin-top:28px; color:var(--mut); font-size:13px; line-height:1.7; }
+  @media (prefers-reduced-motion: reduce) { .banner { transition:none; } .banner:hover { transform:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ผู้ช่วย AI สำนักงาน</h1>
+    <p>เลือกงานที่ต้องการ แต่ละหน้าเลือกโมเดล AI ได้เองจากช่องด้านบนของหน้านั้น</p>
+  </header>
+
+  <main class="grid">
+    <a class="banner" href="/chat">
+      <div class="top" aria-hidden="true">💬</div>
+      <div class="body">
+        <h2>แชทกับ AI</h2>
+        <p>ถามตอบทั่วไป ขอคำแนะนำ ระดมความคิด ต่อบทสนทนาได้ต่อเนื่อง</p>
+        <span class="go">เปิดใช้งาน →</span>
+      </div>
+    </a>
+    <a class="banner" href="/proofread">
+      <div class="top" aria-hidden="true">✍️</div>
+      <div class="body">
+        <h2>ตรวจและปรับภาษา</h2>
+        <p>แก้คำผิด ปรับสำนวนให้สุภาพ กระชับ หรือเป็นทางการ พร้อมไฮไลต์ส่วนที่แก้ รองรับไฟล์ Word</p>
+        <span class="go">เปิดใช้งาน →</span>
+      </div>
+    </a>
+    <a class="banner" href="/write">
+      <div class="top" aria-hidden="true">📝</div>
+      <div class="body">
+        <h2>ช่วยเขียน</h2>
+        <p>ร่างอีเมล ประกาศ โพสต์โซเชียล รายงาน หนังสือราชการ บันทึกข้อความ และหนังสือเชิญประชุม</p>
+        <span class="go">เปิดใช้งาน →</span>
+      </div>
+    </a>
+    <a class="banner" href="/ask">
+      <div class="top" aria-hidden="true">📚</div>
+      <div class="body">
+        <h2>ถามตอบจากเอกสาร</h2>
+        <p>อัปโหลดระเบียบหรือคู่มือ แล้วถามได้ พร้อมอ้างอิงข้อที่ใช้ตอบ</p>
+        <span class="go">เปิดใช้งาน →</span>
+      </div>
+    </a>
+    <a class="banner" href="/meeting">
+      <div class="top" aria-hidden="true">🗒️</div>
+      <div class="body">
+        <h2>สรุปการประชุม</h2>
+        <p>สรุปประเด็น มติ และงานที่ต้องทำจากบันทึกการประชุม ส่งออกเป็นไฟล์ Word ได้</p>
+        <span class="go">เปิดใช้งาน →</span>
+      </div>
+    </a>
+  </main>
+
+  <footer>
+    ผลลัพธ์จาก AI อาจผิดพลาดได้ โปรดตรวจทานชื่อ วันที่ และตัวเลขก่อนนำไปใช้จริง
+    และอย่าใส่ข้อมูลส่วนบุคคลหรือข้อมูลลับ หากยังไม่ได้ตรวจสอบนโยบายข้อมูลของบริการ AI ที่ใช้
+  </footer>
+</div>
+</body>
+</html>

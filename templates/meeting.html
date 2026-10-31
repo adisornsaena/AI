@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สรุปการประชุม</title>
+<link rel="stylesheet" href="/static/model.css">
+<script src="/static/model.js" defer></script>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --accent:#2f6fed; --soft:#eceef4; --border:#dde0ea; --ok:#e7f6ec; --mut:#6b7280; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161c; --card:#1d2029; --text:#e6e8ef; --accent:#3b7bff; --soft:#2a2e3a; --border:#333847; --ok:#1e3326; --mut:#9aa1b2; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; }
+  .app { max-width:900px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  h1 { font-size:18px; margin:0; }
+  small { opacity:.7; font-weight:normal; }
+  a { color:var(--accent); }
+  label.field { display:flex; flex-direction:column; gap:4px; font-size:13px; opacity:.9; }
+  input[type=text], textarea { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+        background:var(--card); color:var(--text); font:inherit; font-size:15px; line-height:1.6; }
+  textarea { min-height:220px; resize:vertical; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  @media (max-width:640px) { .grid { grid-template-columns:1fr; } }
+  button { padding:10px 18px; border:0; border-radius:10px; background:var(--accent); color:#fff; font-size:15px; cursor:pointer; }
+  button.ghost { background:var(--soft); color:var(--text); }
+  button:disabled { opacity:.5; cursor:default; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 16px; }
+  .card h2 { font-size:15px; margin:0 0 6px; }
+  .card ul { margin:0; padding-left:20px; line-height:1.7; }
+  .summary { line-height:1.7; white-space:pre-wrap; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:13px; }
+  td.n { width:36px; color:var(--mut); }
+  .unk { color:var(--mut); }
+  .err { color:#c53030; }
+  .hint { color:var(--mut); font-size:13px; }
+  .hidden { display:none !important; }
+  #result { display:flex; flex-direction:column; gap:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>สรุปการประชุม <small>· <a href="/">หน้าแรก</a> · <a href="/chat">แชท</a> · <a href="/proofread">ตรวจและปรับภาษา</a> · <a href="/write">ช่วยเขียน</a> · <a href="/ask">ถามตอบจากเอกสาร</a></small></h1>
+  <label class="modelbar">โมเดล <select id="model"></select></label>
+
+  <div class="grid">
+    <label class="field">ชื่อการประชุม (ไม่บังคับ)
+      <input type="text" id="title" maxlength="200" placeholder="เช่น ประชุมติดตามโครงการ ครั้งที่ 3">
+    </label>
+    <label class="field">วันที่ประชุม (ไม่บังคับ)
+      <input type="text" id="date" maxlength="100" placeholder="เช่น 28 ตุลาคม 2569">
+    </label>
+    <label class="field">ผู้เข้าร่วม (ไม่บังคับ)
+      <input type="text" id="attendees" maxlength="400" placeholder="เช่น สมชาย, สมหญิง, วิชัย">
+    </label>
+  </div>
+
+  <label class="field">บันทึกการประชุม หรือเนื้อหาที่ถอดเสียง
+    <textarea id="notes" placeholder="วางบันทึกการประชุมที่นี่ ไม่ต้องเรียบเรียงก่อน เช่น จดสั้นๆ หรือข้อความถอดเสียงทั้งหมดก็ได้"></textarea>
+  </label>
+
+  <div class="row">
+    <button id="go">สรุปการประชุม</button>
+    <button id="example" class="ghost">ใส่ตัวอย่าง</button>
+    <button id="upload" class="ghost">อัปโหลดไฟล์</button>
+    <input type="file" id="file" accept=".docx,.txt,.md" class="hidden">
+    <span class="hint" id="count">0 / 30,000 ตัวอักษร</span>
+  </div>
+  <div id="status" class="err"></div>
+
+  <div id="result" class="hidden">
+    <div class="card"><h2>สรุปภาพรวม</h2><div class="summary" id="summary"></div></div>
+    <div class="card" id="c-key"><h2>ประเด็นที่หารือ</h2><ul id="key"></ul></div>
+    <div class="card" id="c-dec"><h2>มติ / ข้อตกลง</h2><ul id="dec"></ul></div>
+    <div class="card" id="c-act"><h2>งานที่ต้องดำเนินการ</h2>
+      <table><thead><tr><th>ที่</th><th>งาน</th><th>ผู้รับผิดชอบ</th><th>กำหนดเสร็จ</th></tr></thead><tbody id="act"></tbody></table>
+    </div>
+    <div class="card" id="c-open"><h2>เรื่องที่ต้องติดตามต่อ</h2><ul id="open"></ul></div>
+    <div class="row">
+      <button id="copy" class="ghost">คัดลอกเป็นข้อความ</button>
+      <button id="docx" class="ghost">ดาวน์โหลด .docx</button>
+      <span class="hint">ตรวจความถูกต้อง โดยเฉพาะชื่อผู้รับผิดชอบและวันที่ ก่อนนำไปใช้</span>
+    </div>
+  </div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const MAX = 30000;
+  const EXAMPLE = {
+    title: "ประชุมติดตามโครงการปรับปรุงระบบ ครั้งที่ 3",
+    date: "28 ตุลาคม 2569",
+    attendees: "สมชาย (หัวหน้าโครงการ), สมหญิง (ฝ่ายพัสดุ), วิชัย (ฝ่ายไอที)",
+    notes: `สมชายเปิดประชุม แจ้งว่าโครงการล่าช้าจากแผนประมาณ 2 สัปดาห์ เพราะรอจัดซื้ออุปกรณ์
+สมหญิงรายงานว่าใบเสนอราคาได้ครบ 3 ราย แล้ว ราคาต่ำสุดอยู่ที่ประมาณ 280,000 บาท จึงเข้าเกณฑ์วิธีคัดเลือก ยังต้องรอผู้อำนวยการอนุมัติ
+วิชัยแจ้งว่าระบบเดิมยังใช้งานได้ แต่ต้องสำรองข้อมูลก่อนย้าย เสนอให้ทำสำรองทั้งหมดภายในวันศุกร์หน้า
+ที่ประชุมเห็นชอบให้เลือกผู้ขายรายที่เสนอราคาต่ำสุด โดยให้สมหญิงเตรียมเอกสารขออนุมัติส่งผู้อำนวยการภายในวันพุธนี้
+สมชายถามเรื่องงบอบรมผู้ใช้งาน ยังไม่ได้ข้อสรุปว่าจะใช้งบส่วนไหน ต้องหารือกับฝ่ายการเงินอีกครั้ง
+นัดประชุมครั้งต่อไปวันที่ 11 พฤศจิกายน 2569 เวลา 10:00 น.`,
+  };
+  let current = null, meta = {};
+
+  const update = () => { $("count").textContent = $("notes").value.length.toLocaleString() + " / 30,000 ตัวอักษร"; };
+  $("notes").addEventListener("input", update);
+
+  $("example").onclick = () => {
+    $("title").value = EXAMPLE.title; $("date").value = EXAMPLE.date;
+    $("attendees").value = EXAMPLE.attendees; $("notes").value = EXAMPLE.notes; update();
+  };
+
+  $("upload").onclick = () => $("file").click();
+  $("file").onchange = async () => {
+    const f = $("file").files[0];
+    if (!f) return;
+    $("status").textContent = "";
+    try {
+      let text;
+      if (f.name.toLowerCase().endsWith(".docx")) {
+        const fd = new FormData(); fd.append("file", f);
+        const res = await fetch("/api/extract", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        text = data.text;
+      } else {
+        text = await f.text();
+      }
+      $("notes").value = text.slice(0, MAX); update();
+      if (text.length > MAX) $("status").textContent = "ไฟล์ยาวกว่า 30,000 ตัวอักษร ตัดเหลือส่วนแรกเท่านั้น";
+    } catch (err) { $("status").textContent = err.message; }
+    $("file").value = "";
+  };
+
+  function fillList(id, cardId, items) {
+    const ul = $(id); ul.innerHTML = "";
+    items.forEach((t) => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+    $(cardId).classList.toggle("hidden", !items.length);
+  }
+
+  function cell(tr, text, cls) {
+    const td = document.createElement("td");
+    td.textContent = text;
+    if (cls) td.className = cls;
+    if (text === "ไม่ระบุ") td.classList.add("unk");
+    tr.appendChild(td);
+  }
+
+  function render(r) {
+    $("summary").textContent = r.summary || "(ไม่มีข้อมูล)";
+    fillList("key", "c-key", r.key_points);
+    fillList("dec", "c-dec", r.decisions);
+    fillList("open", "c-open", r.open_issues);
+    const tb = $("act"); tb.innerHTML = "";
+    r.action_items.forEach((a, i) => {
+      const tr = document.createElement("tr");
+      cell(tr, String(i + 1), "n"); cell(tr, a.task); cell(tr, a.owner); cell(tr, a.due);
+      tb.appendChild(tr);
+    });
+    $("c-act").classList.toggle("hidden", !r.action_items.length);
+    $("result").classList.remove("hidden");
+  }
+
+  function asText(r, m) {
+    const out = [`สรุปผลการประชุม: ${m.title || "การประชุม"}`];
+    if (m.date) out.push(`วันที่ประชุม: ${m.date}`);
+    if (m.attendees) out.push(`ผู้เข้าร่วม: ${m.attendees}`);
+    out.push("", "สรุปภาพรวม", r.summary);
+    const block = (h, items) => items.length && out.push("", h, ...items.map((x) => "- " + x));
+    block("ประเด็นที่หารือ", r.key_points);
+    block("มติ/ข้อตกลง", r.decisions);
+    if (r.action_items.length) {
+      out.push("", "งานที่ต้องดำเนินการ");
+      r.action_items.forEach((a, i) => out.push(`${i + 1}. ${a.task} (ผู้รับผิดชอบ: ${a.owner}, กำหนดเสร็จ: ${a.due})`));
+    }
+    block("เรื่องที่ต้องติดตามต่อ", r.open_issues);
+    return out.join("\n");
+  }
+
+  $("go").onclick = async () => {
+    const notes = $("notes").value.trim();
+    if (!notes) { $("status").textContent = "กรุณาใส่บันทึกการประชุมก่อน"; return; }
+    meta = { title: $("title").value.trim(), date: $("date").value.trim(), attendees: $("attendees").value.trim() };
+    $("status").textContent = "";
+    $("go").disabled = true; $("go").textContent = "กำลังสรุป...";
+    try {
+      const res = await fetch("/api/meeting", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...meta, notes, model: getModel() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      current = data;
+      render(data);
+    } catch (err) { $("status").textContent = err.message; }
+    finally { $("go").disabled = false; $("go").textContent = "สรุปการประชุม"; }
+  };
+
+  $("copy").onclick = async () => {
+    await navigator.clipboard.writeText(asText(current, meta));
+    $("copy").textContent = "คัดลอกแล้ว";
+    setTimeout(() => ($("copy").textContent = "คัดลอกเป็นข้อความ"), 1500);
+  };
+
+  $("docx").onclick = async () => {
+    $("docx").disabled = true;
+    try {
+      const res = await fetch("/api/meeting/docx", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meta, result: current }),
+      });
+      if (!res.ok) throw new Error("สร้างไฟล์ไม่สำเร็จ");
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = "สรุปการประชุม.docx"; a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) { $("status").textContent = err.message; }
+    finally { $("docx").disabled = false; }
+  };
+</script>
+</body>
+</html>

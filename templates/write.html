@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ช่วยเขียน</title>
+<link rel="stylesheet" href="/static/model.css">
+<script src="/static/model.js" defer></script>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --accent:#2f6fed; --soft:#eceef4; --border:#dde0ea; --ok:#e7f6ec; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161c; --card:#1d2029; --text:#e6e8ef; --accent:#3b7bff; --soft:#2a2e3a; --border:#333847; --ok:#1e3326; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; }
+  .app { max-width:860px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  h1 { font-size:18px; margin:0; }
+  small { opacity:.7; font-weight:normal; }
+  a { color:var(--accent); }
+  label.field { display:flex; flex-direction:column; gap:4px; font-size:13px; opacity:.9; }
+  input[type=text], textarea, select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+        background:var(--card); color:var(--text); font:inherit; font-size:15px; line-height:1.6; }
+  textarea { min-height:110px; resize:vertical; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:600px) { .grid { grid-template-columns:1fr; } }
+  .tpl label { padding:6px 14px; border:1px solid var(--border); border-radius:20px; background:var(--card); cursor:pointer; }
+  .tpl input { display:none; }
+  .tpl label:has(input:checked) { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button { padding:10px 18px; border:0; border-radius:10px; background:var(--accent); color:#fff; font-size:15px; cursor:pointer; }
+  button.ghost { background:var(--soft); color:var(--text); }
+  button:disabled { opacity:.5; cursor:default; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .card h2 { font-size:14px; margin:0 0 6px; opacity:.7; }
+  #out { white-space:pre-wrap; line-height:1.7; background:var(--ok); padding:10px 12px; border-radius:8px; }
+  .err { color:#c53030; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ช่วยเขียน <small>· <a href="/">หน้าแรก</a> · <a href="/chat">แชท</a> · <a href="/proofread">ตรวจและปรับภาษา</a> · <a href="/ask">ถามตอบจากเอกสาร</a> · <a href="/meeting">สรุปประชุม</a></small></h1>
+  <label class="modelbar">โมเดล <select id="model"></select></label>
+
+  <div class="row tpl">
+    <label><input type="radio" name="template" value="email" checked>อีเมล</label>
+    <label><input type="radio" name="template" value="announcement">ประกาศ</label>
+    <label><input type="radio" name="template" value="social">โพสต์โซเชียล</label>
+    <label><input type="radio" name="template" value="report">รายงาน</label>
+    <label><input type="radio" name="template" value="gov_letter">หนังสือราชการ</label>
+    <label><input type="radio" name="template" value="gov_memo">บันทึกข้อความ</label>
+    <label><input type="radio" name="template" value="gov_invite">หนังสือเชิญประชุม</label>
+  </div>
+
+  <label class="field">หัวข้อ / วัตถุประสงค์
+    <input type="text" id="topic" maxlength="300" placeholder="เช่น ขอเลื่อนประชุมโครงการจากวันพฤหัสเป็นวันศุกร์">
+  </label>
+
+  <label class="field">ประเด็นสำคัญ / รายละเอียด (ไม่บังคับ)
+    <textarea id="details" maxlength="3000" placeholder="ใส่ข้อมูลที่ต้องมี เช่น วัน เวลา สถานที่ ตัวเลข ถ้าไม่ใส่ โมเดลจะเว้นเป็น [ตัวยึด] ให้เติมเอง"></textarea>
+  </label>
+
+  <div class="grid">
+    <label class="field">ผู้รับสาร (ไม่บังคับ)
+      <input type="text" id="audience" maxlength="200" placeholder="เช่น ผู้อำนวยการ, ลูกค้าใหม่, บุคลากรทั้งหมด">
+    </label>
+    <div class="grid" style="gap:8px">
+      <label class="field">น้ำเสียง
+        <select id="tone">
+          <option value="formal">ทางการ</option>
+          <option value="polite" selected>สุภาพเป็นกันเอง</option>
+          <option value="friendly">เป็นกันเอง อบอุ่น</option>
+          <option value="persuasive">โน้มน้าวใจ</option>
+        </select>
+      </label>
+      <label class="field">ความยาว
+        <select id="length">
+          <option value="short">สั้น</option>
+          <option value="medium" selected>ปานกลาง</option>
+          <option value="long">ยาว</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="go">เขียนให้เลย</button>
+    <button id="example" class="ghost">ใส่ตัวอย่าง</button>
+  </div>
+
+  <div id="status" class="err"></div>
+
+  <div class="card hidden" id="result">
+    <h2>ผลลัพธ์ (แก้ไขได้ในช่องนี้)</h2>
+    <div id="out" contenteditable="true"></div>
+    <div class="row" style="margin-top:8px">
+      <button id="copy" class="ghost">คัดลอก</button>
+      <button id="again" class="ghost">เขียนใหม่</button>
+    </div>
+  </div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const EXAMPLES = {
+    email: ["ขอเลื่อนประชุมโครงการจากวันพฤหัสบดีเป็นวันศุกร์", "ประชุมเดิม 10 ต.ค. เวลา 13:30 น. ขอเลื่อนเป็น 11 ต.ค. เวลาเดิม ห้องประชุมเดิม ขออภัยในความไม่สะดวก", "ทีมงานโครงการ"],
+    announcement: ["แจ้งปิดระบบเพื่อบำรุงรักษา", "ปิดระบบวันเสาร์ที่ 12 ต.ค. เวลา 22:00-02:00 น. ระหว่างนั้นใช้งานไม่ได้ ติดต่อฝ่ายไอที โทร [เบอร์ภายใน]", "บุคลากรทั้งหมด"],
+    social: ["เปิดตัวนิทรรศการใหม่", "นิทรรศการเรื่องการเรียนรู้ตลอดชีวิต เข้าชมฟรี เปิดทุกวันอังคาร-อาทิตย์", "คนรุ่นใหม่ที่สนใจการเรียนรู้"],
+    report: ["สรุปผลการจัดอบรมไตรมาส 3", "จัดอบรม 5 ครั้ง ผู้เข้าร่วมรวม 240 คน ความพึงพอใจเฉลี่ย 4.5/5 พบปัญหาห้องอบรมคับแคบ", "ผู้บริหาร"],
+    gov_letter: ["ขอความอนุเคราะห์วิทยากรบรรยายในงานอบรม", "ขอเชิญบุคลากรของหน่วยงานท่านเป็นวิทยากรบรรยายหัวข้อการเรียนรู้ตลอดชีวิต ในงานอบรมวันที่ [วันที่] เวลา 09:00-12:00 น. ณ [สถานที่] จำนวน 1 ท่าน", "ผู้อำนวยการสำนักงานตัวอย่าง"],
+    gov_memo: ["ขออนุมัติจัดซื้อเครื่องคอมพิวเตอร์สำหรับฝ่ายบริการ", "ขออนุมัติจัดซื้อคอมพิวเตอร์ 5 เครื่อง เนื่องจากเครื่องเดิมใช้งานมากกว่า 6 ปี ชำรุดบ่อย วงเงินประมาณ 150,000 บาท ใช้วิธีคัดเลือก", "ผู้อำนวยการ"],
+    gov_invite: ["ขอเชิญประชุมคณะทำงานโครงการ", "ประชุมเพื่อติดตามความก้าวหน้าโครงการ วันที่ [วันที่] เวลา 13:30 น. ห้องประชุม 2 ชั้น 3 ขอให้แจ้งยืนยันการเข้าร่วม แนบวาระการประชุม", "คณะทำงานโครงการทุกท่าน"],
+  };
+  const tpl = () => document.querySelector('input[name="template"]:checked').value;
+
+  // หนังสือราชการใช้ภาษาทางการเสมอ จึงตั้งน้ำเสียงให้เองเมื่อเลือกเทมเพลตกลุ่มนี้
+  document.querySelectorAll('input[name="template"]').forEach((r) =>
+    r.addEventListener("change", () => { if (r.value.startsWith("gov_")) $("tone").value = "formal"; }));
+
+  $("example").onclick = () => {
+    const [t, d, a] = EXAMPLES[tpl()];
+    $("topic").value = t; $("details").value = d; $("audience").value = a;
+  };
+
+  $("copy").onclick = async () => {
+    await navigator.clipboard.writeText($("out").innerText);
+    $("copy").textContent = "คัดลอกแล้ว";
+    setTimeout(() => ($("copy").textContent = "คัดลอก"), 1500);
+  };
+
+  async function generate() {
+    const topic = $("topic").value.trim();
+    if (!topic) { $("status").textContent = "กรุณาระบุหัวข้อหรือวัตถุประสงค์"; return; }
+    $("status").textContent = "";
+    $("go").disabled = $("again").disabled = true;
+    $("go").textContent = "กำลังเขียน...";
+    try {
+      const res = await fetch("/api/write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template: tpl(), topic, model: getModel(),
+          details: $("details").value, audience: $("audience").value,
+          tone: $("tone").value, length: $("length").value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      $("out").textContent = data.text;
+      $("result").classList.remove("hidden");
+    } catch (err) {
+      $("status").textContent = err.message;
+    } finally {
+      $("go").disabled = $("again").disabled = false;
+      $("go").textContent = "เขียนให้เลย";
+    }
+  }
+  $("go").onclick = generate;
+  $("again").onclick = generate;
+</script>
+</body>
+</html>

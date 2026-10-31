@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Chat Demo</title>
+<link rel="stylesheet" href="/static/model.css">
+<script src="/static/model.js" defer></script>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --user:#2f6fed; --bot:#eceef4; --border:#dde0ea; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161c; --card:#1d2029; --text:#e6e8ef; --user:#3b7bff; --bot:#2a2e3a; --border:#333847; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Tahoma,sans-serif;
+         display:flex; justify-content:center; height:100vh; }
+  .app { width:100%; max-width:720px; display:flex; flex-direction:column; padding:16px; gap:12px; }
+  h1 { font-size:18px; margin:0; }
+  small { opacity:.6; font-weight:normal; }
+  #log { flex:1; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:12px;
+         padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .msg { max-width:85%; padding:8px 12px; border-radius:12px; white-space:pre-wrap; line-height:1.5; }
+  .user { align-self:flex-end; background:var(--user); color:#fff; }
+  .bot { align-self:flex-start; background:var(--bot); }
+  .err { align-self:flex-start; background:#fde8e8; color:#9b1c1c; }
+  form { display:flex; gap:8px; }
+  input { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+          background:var(--card); color:var(--text); font-size:15px; }
+  button { padding:10px 18px; border:0; border-radius:10px; background:var(--user); color:#fff; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>แชทกับ AI <small>· <a href="/">หน้าแรก</a> ·<a href="/proofread">ตรวจและปรับภาษา</a> · <a href="/write">ช่วยเขียน</a> · <a href="/ask">ถามตอบจากเอกสาร</a> · <a href="/meeting">สรุปประชุม</a></small></h1>
+  <label class="modelbar">โมเดล <select id="model"></select></label>
+  <div id="log"></div>
+  <form id="form">
+    <input id="input" placeholder="พิมพ์ข้อความ..." autocomplete="off" autofocus>
+    <button id="send">ส่ง</button>
+  </form>
+</div>
+<script>
+  const log = document.getElementById("log");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const send = document.getElementById("send");
+  const history = [];
+
+  function add(cls, text) {
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    add("user", text);
+    history.push({ role: "user", content: text });
+    send.disabled = true;
+    const pending = add("bot", "กำลังคิด...");
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history, model: getModel() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      pending.textContent = data.reply;
+      history.push({ role: "assistant", content: data.reply });
+    } catch (err) {
+      pending.className = "msg err";
+      pending.textContent = err.message;
+      history.pop();
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  });
+</script>
+</body>
+</html>
