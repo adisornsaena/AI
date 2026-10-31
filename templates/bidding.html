@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตรวจเอกสารเสนอราคา e-bidding</title>
+<link rel="stylesheet" href="/static/model.css">
+<script src="/static/model.js" defer></script>
+<style>
+  :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --accent:#2f6fed; --soft:#eceef4; --border:#dde0ea; --mut:#6b7280;
+          --hi:#fde8e8; --hit:#9b1c1c; --mid:#fff3dc; --midt:#8a5a00; --lo:#e8f0fe; --lot:#1e429f; --okc:#e7f6ec; --okt:#1b6b3a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161c; --card:#1d2029; --text:#e6e8ef; --accent:#3b7bff; --soft:#2a2e3a; --border:#333847; --mut:#9aa1b2;
+            --hi:#3a1d1d; --hit:#ffb4b4; --mid:#3a2e14; --midt:#ffd37a; --lo:#1d2a44; --lot:#a9c4ff; --okc:#1e3326; --okt:#8fe0ae; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; }
+  .app { max-width:1000px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  h1 { font-size:18px; margin:0; }
+  small { opacity:.7; font-weight:normal; }
+  a { color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .card h2 { font-size:15px; margin:0 0 8px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button { padding:9px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; font-size:14px; cursor:pointer; font-family:inherit; }
+  button.ghost { background:var(--soft); color:var(--text); }
+  button.x { padding:2px 8px; background:transparent; color:var(--mut); font-size:16px; }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=text], input[type=date], input[type=number], textarea { padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+        background:var(--card); color:var(--text); font:inherit; font-size:14px; }
+  textarea { width:100%; min-height:130px; resize:vertical; line-height:1.6; }
+  .hint { color:var(--mut); font-size:13px; line-height:1.6; }
+  .warn { background:var(--mid); color:var(--midt); border-radius:10px; padding:8px 12px; font-size:13px; line-height:1.7; }
+  .err { background:var(--hi); color:var(--hit); border-radius:10px; padding:8px 12px; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:13px; }
+  td input[type=text] { width:100%; }
+  td input[type=number] { width:70px; }
+  .bidder { border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:8px; }
+  .bidder .name { flex:1; min-width:180px; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:12px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .s-high, .st-ไม่พบ { background:var(--hi); color:var(--hit); }
+  .s-mid, .st-ต้องตรวจเพิ่ม { background:var(--mid); color:var(--midt); }
+  .s-low { background:var(--lo); color:var(--lot); }
+  .st-พบ { background:var(--okc); color:var(--okt); }
+  .bar { height:10px; background:var(--soft); border-radius:6px; overflow:hidden; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition:width .3s; }
+  .finding { border-left:4px solid var(--border); padding:6px 10px; margin:8px 0; line-height:1.6; }
+  .finding.s-high { border-left-color:var(--hit); background:transparent; }
+  .finding.s-mid { border-left-color:var(--midt); background:transparent; }
+  .finding.s-low { border-left-color:var(--lot); background:transparent; }
+  .ev { color:var(--mut); font-size:12px; margin-top:2px; overflow-wrap:anywhere; }
+  .summary { white-space:pre-wrap; line-height:1.8; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--mut); font-size:13px; }
+  .hidden { display:none !important; }
+  .overall { background:var(--soft); border-radius:10px; padding:10px 14px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ตรวจเอกสารเสนอราคา e-bidding <small>· <a href="/">หน้าแรก</a> · <a href="/chat">แชท</a> · <a href="/proofread">ตรวจและปรับภาษา</a> · <a href="/write">ช่วยเขียน</a> · <a href="/ask">ถามตอบจากเอกสาร</a> · <a href="/meeting">สรุปประชุม</a></small></h1>
+  <label class="modelbar">โมเดล <select id="model"></select></label>
+
+  <div class="warn">
+    เครื่องมือนี้ช่วย<b>คัดกรองเบื้องต้น</b>เพื่อให้คณะกรรมการตรวจได้เร็วขึ้น ไม่ได้ตัดสินผ่าน/ไม่ผ่าน และไม่ตรวจลายมือชื่อ ตราประทับ หรือเนื้อหาในรูปภาพ
+    ไฟล์ที่เป็นภาพสแกนจะถูกแจ้งให้ตรวจเอง · ไฟล์จะถูกส่งข้อความไปยังบริการ AI เพื่อวิเคราะห์ โปรดตรวจสอบนโยบายข้อมูลก่อนใช้กับเอกสารจริง
+    และระบบเก็บไฟล์ไว้ในหน่วยความจำชั่วคราวเท่านั้น (ไม่บันทึกลงดิสก์)
+  </div>
+
+  <div class="card">
+    <h2>ขั้นที่ 1 · เกณฑ์/TOR/ประกาศเชิญชวน</h2>
+    <textarea id="tor" placeholder="วางข้อความส่วนที่ระบุเอกสารที่ต้องยื่น หรือเลือกไฟล์ด้านล่าง"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="ghost" id="torFile">เลือกไฟล์ (.pdf .docx .txt)</button>
+      <input type="file" id="torInput" accept=".txt,.md,.docx,.pdf" class="hidden">
+      <button id="extract">สกัดรายการเอกสารที่ต้องยื่น</button>
+      <span class="hint" id="exStatus"></span>
+    </div>
+    <div id="exErr" class="err hidden" style="margin-top:8px"></div>
+
+    <div id="clBox" class="hidden" style="margin-top:12px">
+      <div class="hint">ตรวจและแก้ไขรายการได้ก่อนเริ่มตรวจ · "อายุสูงสุด (เดือน)" ปล่อยว่างถ้าไม่จำกัด</div>
+      <table>
+        <thead><tr><th>เอกสาร</th><th>รายละเอียด/เงื่อนไข</th><th>จำเป็น</th><th>อายุสูงสุด (เดือน)</th><th></th></tr></thead>
+        <tbody id="clBody"></tbody>
+      </table>
+      <button class="ghost" id="addItem" style="margin-top:8px">+ เพิ่มรายการ</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ขั้นที่ 2 · ผู้ยื่นข้อเสนอและไฟล์</h2>
+    <div class="row">
+      <label>วันที่ยื่นข้อเสนอ <input type="date" id="bidDate"></label>
+      <button class="ghost" id="addBidder">+ เพิ่มผู้ยื่น</button>
+      <button class="ghost" id="rootPick">เลือกโฟลเดอร์รวม (1 โฟลเดอร์ย่อย = 1 ผู้ยื่น)</button>
+      <input type="file" id="rootInput" webkitdirectory multiple class="hidden">
+    </div>
+    <div class="hint" style="margin-top:6px">รองรับ .pdf .docx .txt (ไม่เกิน 25 MB ต่อไฟล์) · เลือกโฟลเดอร์ของแต่ละผู้ยื่นแทนการเลือกไฟล์ทีละไฟล์ได้</div>
+    <div id="bidders"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="start">เริ่มตรวจ</button>
+      <span class="hint" id="startStatus"></span>
+    </div>
+    <div id="startErr" class="err hidden" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card hidden" id="prog">
+    <h2 id="progStage">กำลังตรวจ...</h2>
+    <div class="bar"><div id="progBar"></div></div>
+    <div class="hint" id="progText" style="margin-top:6px"></div>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="row">
+      <h2 style="margin:0;flex:1;font-size:16px">ผลการตรวจเบื้องต้น</h2>
+      <a id="docx" href="#"><button class="ghost" type="button">ดาวน์โหลดรายงาน Word</button></a>
+      <button class="ghost" id="del">ลบข้อมูลที่ค้างในระบบ</button>
+    </div>
+    <div id="overall" class="card overall summary" style="margin-top:8px"></div>
+    <div id="resBody"></div>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const EXTS = [".pdf", ".docx", ".txt"];
+  const SEV = { "สูง": "s-high", "กลาง": "s-mid", "ต่ำ": "s-low" };
+  let bidders = [];            // {name, files: File[]}
+  let jobId = null, timer = null;
+
+  function el(tag, props, ...kids) {
+    const e = document.createElement(tag);
+    if (props) Object.assign(e, props);
+    kids.forEach((k) => e.append(k));
+    return e;
+  }
+  const showErr = (id, msg) => { $(id).textContent = msg || ""; $(id).classList.toggle("hidden", !msg); };
+  const okExt = (n) => EXTS.some((x) => n.toLowerCase().endsWith(x));
+  const fmtSize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB");
+
+  $("bidDate").value = new Date().toISOString().slice(0, 10);
+
+  /* ---------- ขั้นที่ 1 ---------- */
+  $("torFile").onclick = () => $("torInput").click();
+  $("torInput").onchange = async () => {
+    const f = $("torInput").files[0];
+    if (!f) return;
+    $("exStatus").textContent = "กำลังอ่านไฟล์...";
+    const fd = new FormData(); fd.append("file", f);
+    try {
+      const r = await fetch("/api/readtext", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "อ่านไฟล์ไม่สำเร็จ");
+      $("tor").value = d.text; $("exStatus").textContent = "อ่านไฟล์แล้ว";
+    } catch (e) { $("exStatus").textContent = ""; showErr("exErr", e.message); }
+    $("torInput").value = "";
+  };
+
+  $("extract").onclick = async () => {
+    showErr("exErr", "");
+    const text = $("tor").value.trim();
+    if (!text) return showErr("exErr", "กรุณาวางหรือเลือกไฟล์เกณฑ์/TOR ก่อน");
+    $("extract").disabled = true; $("exStatus").textContent = "กำลังสกัดรายการ...";
+    try {
+      const r = await fetch("/api/bids/checklist", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, model: getModel() }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "สกัดรายการไม่สำเร็จ");
+      $("clBody").innerHTML = "";
+      d.items.forEach(addRow);
+      $("clBox").classList.remove("hidden");
+      $("exStatus").textContent = `พบ ${d.items.length} รายการ`;
+    } catch (e) { $("exStatus").textContent = ""; showErr("exErr", e.message); }
+    $("extract").disabled = false;
+  };
+
+  function addRow(it) {
+    it = it || { name: "", detail: "", required: true, max_age_months: null };
+    const name = el("input", { type: "text", value: it.name || "", maxLength: 200 });
+    const detail = el("input", { type: "text", value: it.detail || "", maxLength: 500 });
+    const req = el("input", { type: "checkbox", checked: it.required !== false });
+    const age = el("input", { type: "number", min: 1, max: 120, value: it.max_age_months || "" });
+    const del = el("button", { className: "x", textContent: "✕", title: "ลบรายการ", type: "button" });
+    const tr = el("tr", null, el("td", null, name), el("td", null, detail), el("td", null, req), el("td", null, age), el("td", null, del));
+    del.onclick = () => tr.remove();
+    tr._get = () => ({ name: name.value.trim(), detail: detail.value.trim(), required: req.checked,
+                       max_age_months: age.value ? parseInt(age.value, 10) : null });
+    $("clBody").appendChild(tr);
+  }
+  $("addItem").onclick = () => { $("clBox").classList.remove("hidden"); addRow(); };
+  const getChecklist = () => [...$("clBody").children].map((tr) => tr._get()).filter((x) => x.name);
+
+  /* ---------- ขั้นที่ 2 ---------- */
+  function renderBidders() {
+    const box = $("bidders"); box.innerHTML = "";
+    bidders.forEach((b, i) => {
+      const name = el("input", { type: "text", className: "name", value: b.name, maxLength: 120, placeholder: "ชื่อผู้ยื่น" });
+      name.oninput = () => { b.name = name.value; };
+      const pick = el("button", { className: "ghost", type: "button", textContent: "เลือกไฟล์" });
+      const pickDir = el("button", { className: "ghost", type: "button", textContent: "เลือกโฟลเดอร์" });
+      const inp = el("input", { type: "file", multiple: true, className: "hidden", accept: EXTS.join(",") });
+      const inpDir = el("input", { type: "file", multiple: true, className: "hidden" }); inpDir.webkitdirectory = true;
+      pick.onclick = () => inp.click(); pickDir.onclick = () => inpDir.click();
+      const add = (list) => { b.files.push(...[...list].filter((f) => okExt(f.name))); renderBidders(); };
+      inp.onchange = () => add(inp.files); inpDir.onchange = () => add(inpDir.files);
+      const rm = el("button", { className: "x", type: "button", textContent: "✕", title: "ลบผู้ยื่น" });
+      rm.onclick = () => { bidders.splice(i, 1); renderBidders(); };
+      const total = b.files.reduce((s, f) => s + f.size, 0);
+      const info = el("span", { className: "hint", textContent: `${b.files.length} ไฟล์ · ${fmtSize(total)}` });
+      const clear = el("button", { className: "x", type: "button", textContent: "ล้างไฟล์", title: "ล้างไฟล์ของผู้ยื่นนี้" });
+      clear.onclick = () => { b.files = []; renderBidders(); };
+      box.appendChild(el("div", { className: "bidder" },
+        el("div", { className: "row" }, name, pick, pickDir, inp, inpDir, info, clear, rm)));
+    });
+    if (!bidders.length) box.appendChild(el("div", { className: "hint", style: "margin-top:8px", textContent: "ยังไม่มีผู้ยื่น" }));
+  }
+  $("addBidder").onclick = () => { bidders.push({ name: "ผู้ยื่นรายที่ " + (bidders.length + 1), files: [] }); renderBidders(); };
+  $("rootPick").onclick = () => $("rootInput").click();
+  $("rootInput").onchange = () => {
+    const groups = new Map();
+    [...$("rootInput").files].forEach((f) => {
+      const parts = (f.webkitRelativePath || "").split("/");
+      if (parts.length < 3 || !okExt(f.name)) return;   // ต้องอยู่ในโฟลเดอร์ย่อยของโฟลเดอร์รวม
+      if (!groups.has(parts[1])) groups.set(parts[1], []);
+      groups.get(parts[1]).push(f);
+    });
+    if (!groups.size) { showErr("startErr", "ไม่พบโฟลเดอร์ย่อยที่มีไฟล์ในโฟลเดอร์ที่เลือก (ต้องเป็นโฟลเดอร์รวมที่มีโฟลเดอร์ผู้ยื่นอยู่ข้างใน)"); }
+    else showErr("startErr", "");
+    groups.forEach((files, name) => bidders.push({ name, files }));
+    $("rootInput").value = ""; renderBidders();
+  };
+  renderBidders();
+
+  $("start").onclick = async () => {
+    showErr("startErr", "");
+    const checklist = getChecklist();
+    if (!checklist.length) return showErr("startErr", "ยังไม่มีรายการเอกสารที่ต้องยื่น (ทำขั้นที่ 1 หรือเพิ่มรายการเอง)");
+    const active = bidders.filter((b) => b.files.length);
+    if (!active.length) return showErr("startErr", "ยังไม่ได้เลือกไฟล์ของผู้ยื่น");
+    if (active.some((b) => !b.name.trim())) return showErr("startErr", "กรุณาตั้งชื่อผู้ยื่นให้ครบ");
+    if (new Set(active.map((b) => b.name.trim())).size !== active.length) return showErr("startErr", "ชื่อผู้ยื่นซ้ำกัน");
+    const fd = new FormData();
+    active.forEach((b) => b.files.forEach((f) => {
+      fd.append("files", f, f.webkitRelativePath ? f.webkitRelativePath.split("/").slice(2).join("/") || f.name : f.name);
+      fd.append("owners", b.name.trim());
+    }));
+    fd.append("checklist", JSON.stringify(checklist));
+    fd.append("bid_date", $("bidDate").value);
+    fd.append("model", getModel());
+    $("start").disabled = true; $("startStatus").textContent = "กำลังอัปโหลดไฟล์...";
+    $("results").classList.add("hidden");
+    try {
+      const r = await fetch("/api/bids/start", { method: "POST", body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "เริ่มงานไม่สำเร็จ");
+      jobId = d.job_id; $("startStatus").textContent = "";
+      $("prog").classList.remove("hidden"); poll();
+    } catch (e) { $("startStatus").textContent = ""; showErr("startErr", e.message); $("start").disabled = false; }
+  };
+
+  function poll() {
+    clearTimeout(timer);
+    fetch("/api/bids/job/" + jobId).then(async (r) => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "อ่านสถานะไม่ได้");
+      $("progStage").textContent = d.stage || "กำลังตรวจ...";
+      $("progBar").style.width = (d.total ? Math.round((d.done / d.total) * 100) : 0) + "%";
+      $("progText").textContent = `ขั้นตอนที่เสร็จ ${d.done} / ${d.total} (ไฟล์ + สรุปผล)`;
+      if (d.status === "done") { $("prog").classList.add("hidden"); $("start").disabled = false; renderResults(d.results); }
+      else if (d.status === "error") { $("prog").classList.add("hidden"); $("start").disabled = false; showErr("startErr", d.error || "ตรวจไม่สำเร็จ"); }
+      else timer = setTimeout(poll, 2000);
+    }).catch((e) => { $("prog").classList.add("hidden"); $("start").disabled = false; showErr("startErr", e.message); });
+  }
+
+  /* ---------- ผลลัพธ์ ---------- */
+  function renderResults(res) {
+    $("results").classList.remove("hidden");
+    $("docx").href = "/api/bids/job/" + jobId + "/docx";
+    $("overall").textContent = res.overall_summary || "";
+    $("overall").classList.toggle("hidden", !res.overall_summary);
+    const body = $("resBody"); body.innerHTML = "";
+    res.bidders.forEach((b) => {
+      const c = b.counts || {};
+      const head = el("h2", { textContent: b.name });
+      const cnt = el("div", { className: "row" },
+        ...["สูง", "กลาง", "ต่ำ"].map((s) => el("span", { className: "badge " + SEV[s], textContent: `${s} ${(c[s] ?? b.findings.filter((f) => f.severity === s).length)}` })));
+      const sum = el("div", { className: "summary", style: "margin:8px 0", textContent: b.summary || "" });
+
+      const tb = el("tbody");
+      b.checklist.forEach((r) => tb.appendChild(el("tr", null,
+        el("td", { textContent: r.name + (r.required ? "" : " (ถ้ามี)") }),
+        el("td", null, el("span", { className: "badge st-" + r.status, textContent: r.status })),
+        el("td", null, document.createTextNode(r.note || ""), r.evidence ? el("div", { className: "ev", textContent: r.evidence }) : ""))));
+      const ct = el("table", null, el("thead", null, el("tr", null, el("th", { textContent: "เอกสารที่ต้องยื่น" }), el("th", { textContent: "สถานะ" }), el("th", { textContent: "หมายเหตุ/หลักฐาน" }))), tb);
+
+      const fnd = el("div");
+      if (!b.findings.length) fnd.appendChild(el("div", { className: "hint", textContent: "ไม่พบข้อสังเกตจากการตรวจอัตโนมัติ (ไม่ได้หมายความว่าเอกสารถูกต้องครบถ้วน)" }));
+      b.findings.forEach((f) => {
+        const d = el("div", { className: "finding " + SEV[f.severity] },
+          el("span", { className: "badge " + SEV[f.severity], textContent: f.severity }),
+          document.createTextNode(" " + f.type + " · " + f.message));
+        (f.evidence || []).forEach((e) => d.appendChild(el("div", { className: "ev", textContent: `${e.file}: ${e.text}` })));
+        fnd.appendChild(d);
+      });
+
+      const ft = el("tbody");
+      b.files.forEach((f) => ft.appendChild(el("tr", null,
+        el("td", { textContent: f.name, style: "overflow-wrap:anywhere" }),
+        el("td", { textContent: f.doc_type || "" }),
+        el("td", { textContent: f.status === "ok" ? "อ่านแล้ว" : (f.reason || f.status) }))));
+      const fd = el("details", null, el("summary", { textContent: `ไฟล์ทั้งหมด (${b.files.length})` }),
+        el("table", null, el("thead", null, el("tr", null, el("th", { textContent: "ไฟล์" }), el("th", { textContent: "ประเภทที่ AI จัดให้" }), el("th", { textContent: "สถานะ" }))), ft));
+
+      body.appendChild(el("div", { className: "card", style: "margin-top:12px" }, head, cnt, sum,
+        el("h2", { textContent: "รายการเอกสาร", style: "margin-top:12px;font-size:14px" }), ct,
+        el("h2", { textContent: "ข้อสังเกต", style: "margin-top:12px;font-size:14px" }), fnd, fd));
+    });
+    $("results").scrollIntoView({ behavior: "smooth" });
+  }
+
+  $("del").onclick = async () => {
+    if (!jobId || !confirm("ลบไฟล์และผลลัพธ์ที่ค้างในระบบ? (ดาวน์โหลดรายงานไว้ก่อนถ้าต้องการ)")) return;
+    await fetch("/api/bids/job/" + jobId, { method: "DELETE" });
+    jobId = null; $("results").classList.add("hidden");
+  };
+</script>
+</body>
+</html>

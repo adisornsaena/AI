@@ -3,6 +3,7 @@ import json
 import os
 import re
 from datetime import date
+import bidding
 import rag
 from docx import Document
 from docx.oxml.ns import qn
@@ -11,7 +12,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 from openai import OpenAI
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # อัปโหลดได้ไม่เกิน 20 MB ต่อคำขอ
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # อัปโหลดได้ไม่เกิน 200 MB ต่อคำขอ (ชุดเอกสารเสนอราคามีหลายไฟล์)
 
 MODEL = "gemini-2.5-flash-lite"
 BASE_URL = "https://gen.ai.kku.ac.th/okmd/api/v1"
@@ -597,6 +598,117 @@ def meeting_docx():
     )
 
 
+BID_MAX_FILES = 400
+BID_MAX_BIDDERS = 30
+BID_MAX_FILE_BYTES = 25 * 1024 * 1024
+
+
+@app.get("/bidding")
+def bidding_page():
+    return render_template("bidding.html")
+
+
+@app.post("/api/readtext")
+def readtext():
+    """อ่านข้อความจากไฟล์ที่อัปโหลด (pdf/docx/txt) โดยไม่เก็บไฟล์ ใช้กับ TOR"""
+    f = request.files.get("file")
+    if f is None:
+        return jsonify(error="ไม่ได้เลือกไฟล์"), 400
+    text, reason = bidding.extract_text(os.path.basename(f.filename or ""), f.read())
+    if reason:
+        return jsonify(error=reason), 400
+    return jsonify(text=text)
+
+
+@app.post("/api/bids/checklist")
+def bids_checklist():
+    client = get_client()
+    if client is None:
+        return jsonify(error="ยังไม่ได้ตั้งค่าตัวแปร API_KEY บนเซิร์ฟเวอร์"), 500
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if len(text) < 30:
+        return jsonify(error="กรุณาใส่เนื้อหาเกณฑ์/TOR/ประกาศเชิญชวน"), 400
+    model, err = pick_model(client, data.get("model"))
+    if err:
+        return jsonify(error=err), 400
+    try:
+        items = bidding.extract_checklist(client, model, text)
+    except Exception as e:
+        return jsonify(error=f"สกัดรายการไม่สำเร็จ: {e}"), 502
+    if not items:
+        return jsonify(error="ไม่พบรายการเอกสารที่ต้องยื่นในเนื้อหานี้ ลองเพิ่มรายการเองได้"), 422
+    return jsonify(items=items)
+
+
+@app.post("/api/bids/start")
+def bids_start():
+    client = get_client()
+    if client is None:
+        return jsonify(error="ยังไม่ได้ตั้งค่าตัวแปร API_KEY บนเซิร์ฟเวอร์"), 500
+    files = request.files.getlist("files")
+    owners = request.form.getlist("owners")
+    if not files or len(files) != len(owners):
+        return jsonify(error="ข้อมูลไฟล์และชื่อผู้ยื่นไม่ตรงกัน"), 400
+    if len(files) > BID_MAX_FILES:
+        return jsonify(error=f"ไฟล์มากเกินไป (สูงสุด {BID_MAX_FILES} ไฟล์ต่อครั้ง)"), 400
+    try:
+        checklist = bidding.clean_checklist(json.loads(request.form.get("checklist") or "[]"))
+    except ValueError:
+        checklist = []
+    if not checklist:
+        return jsonify(error="ยังไม่มีรายการเอกสารที่ต้องยื่น"), 400
+    model, err = pick_model(client, request.form.get("model"))
+    if err:
+        return jsonify(error=err), 400
+    bid_date = bidding.parse_date(request.form.get("bid_date")) or date.today()
+
+    bidders = {}
+    for f, owner in zip(files, owners):
+        name = owner.strip()[:120] or "ไม่ระบุชื่อ"
+        data = f.read()
+        if len(data) > BID_MAX_FILE_BYTES:
+            return jsonify(error=f"ไฟล์ {f.filename} ใหญ่เกิน 25 MB"), 400
+        fname = "/".join(p for p in (f.filename or "ไม่มีชื่อ").replace("\\", "/").split("/") if p not in ("", ".", ".."))[:200]
+        existing = {n for n, _ in bidders.get(name, [])}
+        base, n = fname, 2
+        while fname in existing:
+            fname, n = f"{base} ({n})", n + 1
+        bidders.setdefault(name, []).append((fname, data))
+    if len(bidders) > BID_MAX_BIDDERS:
+        return jsonify(error=f"ผู้ยื่นมากเกินไป (สูงสุด {BID_MAX_BIDDERS} ราย)"), 400
+
+    job = bidding.start_job(client, model, checklist, bidders, bid_date)
+    return jsonify(job_id=job["id"], total=job["total"])
+
+
+@app.get("/api/bids/job/<job_id>")
+def bids_job(job_id):
+    job = bidding.get_job(job_id)
+    if job is None:
+        return jsonify(error="ไม่พบงาน (อาจหมดอายุหรือถูกลบแล้ว)"), 404
+    return jsonify(status=job["status"], stage=job["stage"], done=job["done"], total=job["total"],
+                   error=job["error"], results=job["results"] if job["status"] == "done" else None)
+
+
+@app.delete("/api/bids/job/<job_id>")
+def bids_job_delete(job_id):
+    return jsonify(deleted=bidding.delete_job(job_id))
+
+
+@app.get("/api/bids/job/<job_id>/docx")
+def bids_docx(job_id):
+    job = bidding.get_job(job_id)
+    if job is None or job["status"] != "done":
+        return jsonify(error="ยังไม่มีผลลัพธ์ให้ดาวน์โหลด"), 404
+    return send_file(
+        bidding.build_docx(job["results"]),
+        as_attachment=True,
+        download_name="รายงานคัดกรองเอกสารเสนอราคา.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
 @app.post("/api/extract")
 def extract_docx():
     file = request.files.get("file")
@@ -657,4 +769,4 @@ def proofread():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=int(os.environ.get("PORT", 5000)))

@@ -2,6 +2,7 @@
 
 ไม่ใช้ embedding เพราะ endpoint ไม่รองรับ และ n-gram ใช้ได้กับภาษาไทยที่ไม่มีเว้นวรรคระหว่างคำ
 """
+import io
 import math
 import os
 import random
@@ -34,25 +35,27 @@ def grams(text):
     return [t[i : i + 3] for i in range(len(t) - 2)]
 
 
-def read_file(path):
+def read_file(path, data=None):
+    """อ่านข้อความจากไฟล์ ถ้าส่ง data (bytes) มาจะอ่านจากหน่วยความจำ ใช้ path แค่ดูนามสกุล (ไม่แตะดิสก์)"""
     ext = os.path.splitext(path)[1].lower()
     if ext in (".txt", ".md"):
-        raw = open(path, "rb").read()
+        raw = data if data is not None else open(path, "rb").read()
         for enc in ("utf-8-sig", "tis-620"):
             try:
                 return raw.decode(enc)
             except UnicodeDecodeError:
                 continue
         return raw.decode("utf-8", errors="ignore")
+    src = io.BytesIO(data) if data is not None else path
     if ext == ".docx":
-        doc = Document(path)
+        doc = Document(src)
         parts = [p.text for p in doc.paragraphs]
         for table in doc.tables:
             for row in table.rows:
                 parts.append(" | ".join(c.text.strip() for c in row.cells))
         return "\n".join(parts)
     if ext == ".pdf":
-        return "\n".join((page.extract_text() or "") for page in PdfReader(path).pages)
+        return "\n".join((page.extract_text() or "") for page in PdfReader(src).pages)
     raise ValueError("ชนิดไฟล์ไม่รองรับ")
 
 
